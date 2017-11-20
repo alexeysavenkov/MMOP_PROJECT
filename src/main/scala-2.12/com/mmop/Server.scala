@@ -1,5 +1,6 @@
 package com.mmop
 
+import com.mmop.controllers.{AccountController, AuthController}
 import com.twitter.finatra.http.routing.HttpRouter
 import com.twitter.finatra.http.{Controller, HttpServer}
 
@@ -9,7 +10,7 @@ object Server extends HttpServer {
 
   override def configureHttp(router: HttpRouter): Unit = {
     router.
-      add[AuthController]
+      add[AuthController].add[AccountController]
   }
 //  val server = Http.serve(":8080", service)
 //  Await.ready(server)

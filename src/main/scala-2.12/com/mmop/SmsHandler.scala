@@ -18,6 +18,6 @@ object SmsHandler {
   }
 
   def sendLoginCode(phoneNumber: String, loginCode: String) : Unit = {
-    sendSms(phoneNumber, s"Your login code is $loginCode. Welcome to MMOP E-banking!")
+    sendSms(phoneNumber, s"Your login code is $loginCode. Welcome to MOOP!")
   }
 }
