@@ -15,18 +15,45 @@ class AutomaticTransaction(val fields: Map[String, Any]) extends AbstractModel {
   def amount = getFieldDecimal("amount")
   def intervalDays = getField[Int]("intervalDays")
   def timeLastTransaction = getFieldOption[Timestamp]("timeLastTransaction")
+  def error = getFieldOption[String]("error")
 
   def asOutput = JObject(
     "id" -> JInt(id),
     "destinationAccount" -> JInt(destinationAccount),
     "amount" -> JDecimal(amount),
     "intervalDays" -> JInt(intervalDays),
-    "timeLastTransaction" -> JString(timeLastTransaction.toString)
+    "timeLastTransaction" -> JString(timeLastTransaction.map(_.toString).getOrElse("")),
+    "error" -> JString(error.getOrElse(""))
   )
 
   def delete(): Unit = {
     MmopDatabase.withSession(implicit db => {
       sql"DELETE FROM `AutomaticTransaction` WHERE id = ${id}".executeUpdate().apply()
+    })
+  }
+
+  def run(): Either[String, Unit] = {
+    MmopDatabase.withSession(implicit session => {
+      Accounts.byId(sourceAccount) match {
+        case Some(srcAccount) =>
+          Accounts.byId(destinationAccount) match {
+            case Some(destAccount) =>
+              Transactions.create(srcAccount, destAccount, amount, Some(this)) match {
+                case Right(_) =>
+                  sql"""UPDATE `AutomaticTransaction` SET timeLastTransaction = NOW(), error = NULL WHERE id = ${id}""".executeUpdate().apply()
+                  Right()
+                case Left(error) =>
+                  sql"""UPDATE `AutomaticTransaction` SET error = ${error} WHERE id = ${id}""".executeUpdate().apply()
+                  Left(s"Error when running automatic transaction: $error")
+              }
+
+            case None =>
+              Left("Destination account does not exist")
+          }
+
+        case None =>
+          Left("Source account does not exist")
+      }
     })
   }
 }
@@ -60,6 +87,13 @@ object AutomaticTransactions {
     MmopDatabase.withReadOnlySession(implicit db => {
       sql"SELECT * FROM `AutomaticTransaction` WHERE id = ${id}"
         .map(_.toMap()).single().apply().map(new AutomaticTransaction(_))
+    })
+  }
+
+  def getAllPending(): List[AutomaticTransaction] = {
+    MmopDatabase.withReadOnlySession(implicit db => {
+      sql"SELECT * FROM `AutomaticTransaction` WHERE timeLastTransaction IS NULL OR (timeLastTransaction + INTERVAL intervalDays DAY) < NOW()"
+        .map(_.toMap()).list().apply().map(new AutomaticTransaction(_))
     })
   }
 

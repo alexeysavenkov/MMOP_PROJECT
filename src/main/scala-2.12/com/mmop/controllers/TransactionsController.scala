@@ -14,7 +14,7 @@ class TransactionsController @Inject()(
                                         //exampleService: ExampleService
                                       ) extends Controller {
 
-  post("/transactions/create/:src/:dest") { request: Request =>
+  post("/transactions/:src/:dest") { request: Request =>
     val srcAccountId = request.getIntParam("src")
     val destAccountId = request.getIntParam("dest")
     val amountStr = request.getParam("amount")
@@ -29,13 +29,11 @@ class TransactionsController @Inject()(
       User.byPublicToken(token) match {
         case Some(user) =>
           Accounts.byId(srcAccountId) match {
-            case Some(srcAccount) if srcAccount.userId != user.id =>
-              response.badRequest("You don't own source account")
 
             case Some(srcAccount) =>
               Accounts.byId(destAccountId) match {
                 case Some(destAccount) =>
-                  Transactions.create(srcAccount, destAccount, amountStr.toDouble) match {
+                  Transactions.create(srcAccount, destAccount, BigDecimal(amountStr)) match {
                     case Left(error) => response.badRequest(error)
                     case Right(_) => response.ok("Transaction successful")
                   }

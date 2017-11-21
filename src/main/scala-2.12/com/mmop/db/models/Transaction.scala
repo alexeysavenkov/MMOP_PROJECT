@@ -22,40 +22,40 @@ class Transaction(val fields: Map[String, Any]) extends AbstractModel {
 
 object Transactions {
 
-  def create(notVerifiedSrcAccount : Account, destAccount : Account, amount : BigDecimal ) : Either[String, Unit] = {
+  def create(notVerifiedSrcAccount : Account, destAccount : Account, amount : BigDecimal, automaticTransaction: Option[AutomaticTransaction] = None) : Either[String, Unit] = {
     MmopDatabase.withSession(implicit session => {
 
       // To avoid race condition;
-      // Efficiency can be improved (by row-locking instead of table-locking)
-      sql"LOCK TABLES `Account` WRITE;".execute().apply()
+      // Efficiency can be improved (by locking only TWO accounts instead of ALL accounts)
+      synchronized {
 
-      val verifiedSrcAccountOpt : Option[Account] = notVerifiedSrcAccount.refresh()
+        val verifiedSrcAccountOpt: Option[Account] = notVerifiedSrcAccount.refresh()
 
-      verifiedSrcAccountOpt match {
-        case Some(verifiedSrcAccount) =>
-          if (amount <= 0) {
-            Left("Cannot send non-positive amount of money")
-          } else if (verifiedSrcAccount.amount + verifiedSrcAccount.creditLimit <= amount) {
-            Left("Source account does not have enough money")
-          } else {
-            sql"""
-              START TRANSACTION;
+        verifiedSrcAccountOpt match {
+          case Some(verifiedSrcAccount) =>
+            if (amount <= 0) {
+              Left("Cannot send non-positive amount of money")
+            } else if (verifiedSrcAccount.amount + verifiedSrcAccount.creditLimit < amount) {
+              Left(s"Source account does not have enough money (${verifiedSrcAccount.amount} needed; $amount present)")
+            } else {
+              // Transactions are atomic
+              sql"""START TRANSACTION;""".execute().apply()
+              sql"""UPDATE Account SET amount = amount + ${amount} WHERE id = ${destAccount.id};""".execute().apply()
+              sql"""UPDATE Account SET amount = amount - ${amount} WHERE id = ${verifiedSrcAccount.id};""".execute().apply()
+              sql"""
+                  INSERT INTO `Transaction`(sourceAccount, destinationAccount, amount, automaticTransactionId)
+                  VALUES (${verifiedSrcAccount.id}, ${destAccount.id}, ${amount}, ${automaticTransaction.map(_.id)});
+                """.execute().apply()
+              sql""" COMMIT """.execute().apply()
 
-              UPDATE `Account` SET amount = amount + ${amount} WHERE id = ${destAccount.id};
-              UPDATE `Account` SET amount = amount - ${amount} WHERE id = ${verifiedSrcAccount.id};
 
-              INSERT INTO `Transaction`(sourceAccount, destinationAccount, amount)
-              VALUES (${verifiedSrcAccount.id}, ${destAccount.id}, ${amount});
+              Right()
+            }
+          case None =>
+            Left(s"Account ${notVerifiedSrcAccount.id} does not exist")
+        }
 
-              COMMIT
-            """.executeUpdate().apply()
-
-            Right()
-          }
-        case None =>
-          Left(s"Account ${notVerifiedSrcAccount.id} does not exist")
       }
-
     })
   }
 

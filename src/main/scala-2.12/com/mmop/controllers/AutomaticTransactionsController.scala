@@ -8,7 +8,29 @@ import com.twitter.finatra.http.Controller
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods.{pretty, render}
 
+import scala.concurrent.Future
 import scala.util.Try
+
+import scala.concurrent.ExecutionContext.Implicits.global
+
+
+// object = lazy singleton
+object AutomaticTransactionBackgroundThread {
+  // Force singleton initialization
+  def init() {}
+
+  Future {
+    while(true) {
+      // Run every pending automatic transaction
+      val pendingTransactions = AutomaticTransactions.getAllPending()
+
+      pendingTransactions.foreach(_.run())
+
+      // Repeat every minute
+      Thread.sleep(1000 * 60)
+    }
+  }
+}
 
 class AutomaticTransactionsController @Inject()(
                                         //exampleService: ExampleService
