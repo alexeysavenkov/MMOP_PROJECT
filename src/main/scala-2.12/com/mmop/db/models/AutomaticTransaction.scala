@@ -33,28 +33,35 @@ class AutomaticTransaction(val fields: Map[String, Any]) extends AbstractModel {
   }
 
   def run(): Either[String, Unit] = {
-    MmopDatabase.withSession(implicit session => {
-      Accounts.byId(sourceAccount) match {
-        case Some(srcAccount) =>
-          Accounts.byId(destinationAccount) match {
-            case Some(destAccount) =>
-              Transactions.create(srcAccount, destAccount, amount, Some(this)) match {
-                case Right(_) =>
-                  sql"""UPDATE `AutomaticTransaction` SET timeLastTransaction = NOW(), error = NULL WHERE id = ${id}""".executeUpdate().apply()
-                  Right()
-                case Left(error) =>
-                  sql"""UPDATE `AutomaticTransaction` SET error = ${error} WHERE id = ${id}""".executeUpdate().apply()
-                  Left(s"Error when running automatic transaction: $error")
-              }
+    try {
+      MmopDatabase.withSession(implicit session => {
+        Accounts.byId(sourceAccount) match {
+          case Some(srcAccount) =>
+            Accounts.byId(destinationAccount) match {
+              case Some(destAccount) =>
+                Transactions.create(srcAccount, destAccount, amount, Some(this)) match {
+                  case Right(_) =>
+                    sql"""UPDATE `AutomaticTransaction` SET timeLastTransaction = NOW(), error = NULL WHERE id = ${id}""".executeUpdate().apply()
+                    Right()
+                  case Left(error) =>
+                    sql"""UPDATE `AutomaticTransaction` SET error = ${error} WHERE id = ${id}""".executeUpdate().apply()
+                    Left(s"Error when running automatic transaction: $error")
+                }
 
-            case None =>
-              Left("Destination account does not exist")
-          }
+              case None =>
+                Left("Destination account does not exist")
+            }
 
-        case None =>
-          Left("Source account does not exist")
-      }
-    })
+          case None =>
+            Left("Source account does not exist")
+        }
+      })
+    } catch {
+      case e: Exception =>
+        println("Error in AutomaticTransaction.run()")
+        e.printStackTrace()
+        Left("Error in AutomaticTransaction.run(): " + e.getMessage)
+    }
   }
 }
 

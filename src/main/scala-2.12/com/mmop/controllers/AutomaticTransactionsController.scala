@@ -21,13 +21,19 @@ object AutomaticTransactionBackgroundThread {
 
   Future {
     while(true) {
-      // Run every pending automatic transaction
-      val pendingTransactions = AutomaticTransactions.getAllPending()
+      try {
+        // Run every pending automatic transaction
+        val pendingTransactions = AutomaticTransactions.getAllPending()
 
-      pendingTransactions.foreach(_.run())
+        pendingTransactions.foreach(_.run())
 
-      // Repeat every minute
-      Thread.sleep(1000 * 60)
+        // Repeat every minute
+        Thread.sleep(1000 * 60)
+      } catch {
+        case e: Exception =>
+          println("Error in AutomaticTransactionBackgroundThread. Continuing")
+          e.printStackTrace()
+      }
     }
   }
 }

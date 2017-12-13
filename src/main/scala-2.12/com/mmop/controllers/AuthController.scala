@@ -47,9 +47,11 @@ class AuthController @Inject()(
     } else {
       User.byPhone(phoneNumber) match {
         case Some(user) =>
-          if(user.smsCode == code) {
+          if(user.smsCodeOpt.contains(code)) {
             user.clearSmsCode()
             response.ok(s"""{"token":"${user.publicToken}"}""")
+          } else if(user.smsCodeOpt.isEmpty) {
+            response.unauthorized("Please send SMS again")
           } else {
             user.clearSmsCode()
             response.unauthorized("Unauthorized")

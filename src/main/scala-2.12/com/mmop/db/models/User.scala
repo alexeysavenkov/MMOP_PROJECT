@@ -10,6 +10,7 @@ class User(val fields: Map[String, Any]) extends AbstractModel {
 
   def id = getField[Long]("id")
   def phoneNumber = getField[String]("phone")
+  def smsCodeOpt = getFieldOption[String]("smsLoginCode")
   def smsCode = getField[String]("smsLoginCode")
   def publicToken = getField[String]("publicToken")
   def timeSmsSent = getField[Timestamp]("timeSmsSent")
