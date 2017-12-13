@@ -36,7 +36,7 @@ object Transactions {
             if (amount <= 0) {
               Left("Cannot send non-positive amount of money")
             } else if (verifiedSrcAccount.amount + verifiedSrcAccount.creditLimit < amount) {
-              Left(s"Source account does not have enough money (${verifiedSrcAccount.amount} needed; $amount present)")
+              Left(s"Source account does not have enough money (${verifiedSrcAccount.amount} present; $amount needed)")
             } else {
               // Transactions are atomic
               sql"""START TRANSACTION;""".execute().apply()
